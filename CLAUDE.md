@@ -30,6 +30,14 @@ pnpm start        # Run built CLI
 - **CLI**: Commander.js (flags, config loading)
 - **Terminal UX**: Chalk (console output)
 
+### Blockchain Simulation
+Realistic blockchain with mempool and block mining:
+- Genesis block created on startup (block 0)
+- Transactions enter mempool → receipt returns `null` while pending
+- Auto-mining loop produces blocks on configurable interval
+- State changes applied only when block is mined
+- Empty blocks are mined (realistic behavior)
+
 ### Response Pipeline
 Single layered system with precedence: **Override → State → Default**
 
@@ -39,6 +47,14 @@ Single layered system with precedence: **Override → State → Default**
 
 ### Multi-Contract Support
 Contract registry maps addresses to ABIs. Incoming requests routed by "to" field, decoded via function selector.
+
+### Key Source Files
+- `src/blockchain/chain.ts` - Core blockchain with mempool and mining loop
+- `src/blockchain/types.ts` - Block, Transaction, Receipt types
+- `src/abi/registry.ts` - Contract address → ABI mapping
+- `src/abi/defaults.ts` - Default value generator for ABI types
+- `src/state/store.ts` - In-memory state with getter/setter convention
+- `src/rpc/handler.ts` - JSON-RPC method handlers
 
 ### Optional Proxy Mode
 System calls (`eth_blockNumber`, `eth_chainId`, `eth_getBalance`) can be proxied to real upstream RPC while contract calls are mocked locally.
@@ -61,6 +77,7 @@ Optional `abi.config.json`:
 ```json
 {
   "port": 8545,
+  "blockTime": 1,
   "proxyRpc": "https://sepolia.infura.io/v3/...",
   "contracts": {
     "0x1234...": "./abis/Token.json",
@@ -68,3 +85,5 @@ Optional `abi.config.json`:
   }
 }
 ```
+
+- `blockTime`: Seconds between blocks (default: 1, set to 0 for instant mining)

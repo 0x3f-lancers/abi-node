@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 export interface Config {
   port?: number;
+  blockTime?: number; // seconds between blocks (default: 1, 0 = instant mining)
   proxyRpc?: string;
   contracts?: Record<string, string>; // address -> ABI file path
 }

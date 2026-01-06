@@ -65,33 +65,43 @@ RPC_URL=http://localhost:8545
 - **Zero-chain** - No Anvil, no Hardhat node, no Docker
 - **ABI-first** - If you have the interface, you have the mock
 - **Stateful** - Writes persist in memory, reads reflect them
+- **Realistic mining** - Mempool, blocks, pending transactions
 - **Event logs** - Indexers and subgraphs work out of the box
 - **Drop-in** - Standard JSON-RPC, works with any Web3 library
 
 ## Supported Methods
 
-| Method                      | Status  |
-| --------------------------- | ------- |
-| `eth_chainId`               | Ready   |
-| `eth_blockNumber`           | Ready   |
-| `eth_call`                  | Phase 3 |
-| `eth_sendTransaction`       | Phase 3 |
-| `eth_getLogs`               | Phase 4 |
-| `eth_getTransactionReceipt` | Phase 4 |
+| Method                      | Status |
+| --------------------------- | ------ |
+| `eth_chainId`               | Ready  |
+| `eth_blockNumber`           | Ready  |
+| `eth_call`                  | Ready  |
+| `eth_sendTransaction`       | Ready  |
+| `eth_getTransactionReceipt` | Ready  |
+| `eth_getBlockByNumber`      | Ready  |
+| `eth_getLogs`               | Ready  |
+| `net_version`               | Ready  |
 
 ## Configuration
 
-Create `abi.config.json` to pin contract addresses:
+Create `abi.config.json` to customize behavior:
 
 ```json
 {
   "port": 8545,
+  "blockTime": 1,
   "contracts": {
     "0x1234...": "./abis/Token.json",
     "0x5678...": "./abis/Vault.json"
   }
 }
 ```
+
+| Option      | Default | Description                                    |
+| ----------- | ------- | ---------------------------------------------- |
+| `port`      | 8545    | Server port                                    |
+| `blockTime` | 1       | Seconds between blocks (0 = instant mining)   |
+| `contracts` | -       | Map contract addresses to ABI files           |
 
 ## Why Not Anvil/Hardhat?
 
