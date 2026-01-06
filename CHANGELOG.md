@@ -9,3 +9,12 @@
 - Implemented `eth_blockNumber` (returns current block as hex)
 - Milestone verified: `curl` requests return valid JSON-RPC responses
 - Added README.md with project overview and usage guide
+
+### Phase 2: ABI Loading & Routing - Complete
+- ABI loader: reads JSON files from directory, supports raw arrays and Hardhat/Foundry artifacts
+- Config file support: optional `abi.config.json` for pinning contract addresses
+- Contract registry: auto-assigns deterministic addresses when not configured
+- Request routing: looks up contract by `to` address
+- Function decoding: uses viem to decode selector and arguments
+- Startup output shows registered contracts with addresses
+- Milestone verified: server logs decoded function calls (e.g., `Token.balanceOf(...)`)
