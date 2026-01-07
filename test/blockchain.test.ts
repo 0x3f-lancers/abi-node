@@ -323,11 +323,11 @@ describe("8. Edge Cases", () => {
     blockchain = new Blockchain(registry, 0);
   });
 
-  it("should throw an error for malformed calldata", () => {
-    const badCallData = "0x12345678";
-    expect(() =>
-      blockchain.call(MOCK_CONTRACT_ADDRESS, badCallData as `0x${string}`)
-    ).toThrow();
+  it("should return 0x for unknown selectors (graceful fallback)", () => {
+    const badCallData = "0x12345678"; // Unknown selector
+    // Unknown selectors now return 0x instead of throwing
+    const result = blockchain.call(MOCK_CONTRACT_ADDRESS, badCallData as `0x${string}`);
+    expect(result).toBe("0x");
   });
 
   it("should throw an error for a transaction to an unregistered contract", () => {

@@ -8,6 +8,11 @@ import { ProxyClient } from "./rpc/proxy.js";
 import { Blockchain } from "./blockchain/chain.js";
 import { OverrideStore } from "./state/overrides.js";
 
+// Make BigInt JSON serializable globally
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
+
 interface ServerOptions {
   port: number;
   abiDir?: string;

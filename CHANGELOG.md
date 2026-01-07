@@ -59,12 +59,14 @@
 ### Phase 5: Polish - Complete
 
 #### Proxy Mode
+
 - Forward unknown contract calls to upstream RPC when `proxyRpc` is configured
 - System methods (`eth_getBalance`, `eth_getCode`, `eth_gasPrice`, etc.) proxied to upstream
 - Known contracts still mocked locally for hybrid mock/real setup
 - Unknown RPC methods forwarded to proxy if available
 
 #### Override System
+
 - Per-function return value overrides via `abi.config.json`
 - Support for `ContractName.function` or `0xAddress.function` formats
 - Simple value overrides: `"Token.balanceOf": "1000000000000000000"`
@@ -73,12 +75,14 @@
 - Override precedence: Override → State → Default
 
 #### Error Handling
+
 - Typed error classes: `UnknownContractError`, `DecodeError`, `RevertError`
 - Improved error messages with context (address, selector, reason)
 - Proper JSON-RPC error codes (3 for revert, -32000 for server errors)
 - Better error response formatting in RPC handler
 
 #### Config Format
+
 ```json
 {
   "proxyRpc": "https://sepolia.infura.io/v3/...",
@@ -94,27 +98,32 @@
 ### Phase 5.1: Testing & Developer Experience
 
 #### CLI Improvements
+
 - Clear error messages when no ABI source specified
 - Helpful error when ABI directory not found (with example structure)
 - Config-only mode: run with just `abi.config.json`, no abiDir required
 - Custom config path: `--config` / `-c` flag
 
 #### Config Contracts Loading
+
 - `config.contracts` now loads ABIs directly from specified paths
 - Works without abiDir when contracts are defined in config
 - Example: `{ "contracts": { "0x123...": "./contracts/Token.json" } }`
 
 #### Request Logging
+
 - All RPC requests logged to console with method name
 - Contract call details: `← eth_call to=0x5FbD...0aa3 0x70a08231`
 - Response results: `→ 0x000...0001` or `→ error: message`
 
 #### CORS Support
+
 - Enabled CORS headers for browser requests
 - Handles preflight OPTIONS requests
 - Works with frontend apps on different ports (e.g., localhost:3000)
 
 #### Logging Configuration
+
 ```json
 {
   "logging": {
@@ -124,11 +133,13 @@
   }
 }
 ```
+
 - `requests`: Show/hide RPC request logs (default: true)
 - `blocks`: Show/hide block mining messages (default: true)
 - `hideEmptyBlocks`: Only show blocks with transactions (default: false)
 
 #### Mock RPC Methods
+
 - `eth_getBalance`: Returns 100 ETH (no proxy required)
 - `eth_getCode`: Returns 0x1 for known contracts, 0x for unknown
 - `eth_gasPrice`: Returns 1 gwei
@@ -137,7 +148,28 @@
 - `eth_accounts`: Returns empty array
 
 #### Test Organization
+
 - Split `phase5.test.ts` into focused test files:
   - `override.test.ts` - Override system tests
   - `errors.test.ts` - Error handling tests
   - `proxy.test.ts` - Proxy mode tests
+
+### Phase 5.2: Init Command & TypeScript ABI Support
+
+#### Init Command
+
+- `abi-node init`: Creates `abi.config.json` with default settings
+- All logging features enabled by default
+- `--force` flag to overwrite existing config
+- Shows helpful next steps after creation
+
+#### TypeScript ABI Files
+
+- Support for `.ts` files with viem-style ABI exports
+- Handles `export const abi = [...] as const` format
+- Works with or without `as const` assertion
+- Auto-derives contract name from export name (e.g., `stakingAbi` → `Staking`)
+- Skips `.d.ts` declaration files automatically
+- Supports both directory scanning and config `contracts` paths
+- Mix `.json` and `.ts` files in the same directory
+- Tests: 76 tests covering all phases

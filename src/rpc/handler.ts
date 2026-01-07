@@ -1,4 +1,4 @@
-import { toHex } from "viem";
+import { toHex, parseTransaction } from "viem";
 import type { Blockchain } from "../blockchain/chain.js";
 import { ProxyClient, ProxyError } from "./proxy.js";
 import {
@@ -265,6 +265,133 @@ export function createRpcHandler(options: HandlerOptions) {
     // Mock eth_accounts - return empty array
     eth_accounts: () => ({
       result: [],
+    }),
+
+    // eth_sendRawTransaction - decode signed tx and execute
+    eth_sendRawTransaction: (params) => {
+      const [signedTx] = params as [string];
+
+      try {
+        // Decode the signed transaction using viem
+        const tx = parseTransaction(signedTx as `0x${string}`);
+
+        const from = tx.from ?? ("0x0000000000000000000000000000000000000000" as `0x${string}`);
+        const to = tx.to as `0x${string}`;
+        const data = (tx.data ?? "0x") as `0x${string}`;
+        const value = tx.value ?? 0n;
+
+        if (!to) {
+          // Contract creation - not supported, just return a hash
+          const txHash = `0x${Date.now().toString(16).padStart(64, "0")}` as `0x${string}`;
+          return { result: txHash };
+        }
+
+        // Execute the transaction through the blockchain
+        const txHash = blockchain.sendTransaction(from, to, data, value);
+        return { result: txHash };
+      } catch (err) {
+        // If we can't decode, just return a mock hash
+        const txHash = `0x${Date.now().toString(16).padStart(64, "0")}` as `0x${string}`;
+        return { result: txHash };
+      }
+    },
+
+    // eth_getTransactionByHash
+    eth_getTransactionByHash: (params) => {
+      const [txHash] = params as [string];
+      const receipt = blockchain.getTransactionReceipt(txHash as `0x${string}`);
+
+      if (!receipt) {
+        return { result: null };
+      }
+
+      return {
+        result: {
+          hash: receipt.transactionHash,
+          blockHash: receipt.blockHash,
+          blockNumber: toHex(receipt.blockNumber),
+          from: receipt.from,
+          to: receipt.to,
+          transactionIndex: toHex(receipt.transactionIndex),
+          gas: "0x5208",
+          gasPrice: "0x3b9aca00",
+          input: "0x",
+          nonce: "0x0",
+          value: "0x0",
+        },
+      };
+    },
+
+    // eth_getBlockByHash
+    eth_getBlockByHash: (params) => {
+      const [blockHash, includeTransactions] = params as [string, boolean];
+      // Search blocks by hash
+      for (let i = 0; i <= blockchain.blockNumber; i++) {
+        const block = blockchain.getBlock(i);
+        if (block && block.hash === blockHash) {
+          return {
+            result: {
+              number: toHex(block.number),
+              hash: block.hash,
+              parentHash: block.parentHash,
+              timestamp: toHex(block.timestamp),
+              transactions: includeTransactions
+                ? block.transactions.map((tx) => ({
+                    hash: tx.hash,
+                    from: tx.from,
+                    to: tx.to,
+                  }))
+                : block.transactions.map((tx) => tx.hash),
+            },
+          };
+        }
+      }
+      return { result: null };
+    },
+
+    // EIP-1559: eth_maxPriorityFeePerGas
+    eth_maxPriorityFeePerGas: () => ({
+      result: "0x3b9aca00", // 1 gwei
+    }),
+
+    // EIP-1559: eth_feeHistory
+    eth_feeHistory: () => ({
+      result: {
+        baseFeePerGas: ["0x3b9aca00", "0x3b9aca00"],
+        gasUsedRatio: [0.5],
+        oldestBlock: toHex(blockchain.blockNumber),
+        reward: [["0x3b9aca00"]],
+      },
+    }),
+
+    // web3_clientVersion
+    web3_clientVersion: () => ({
+      result: "abi-node/1.0.0",
+    }),
+
+    // eth_syncing - not syncing (we're always "synced")
+    eth_syncing: () => ({
+      result: false,
+    }),
+
+    // eth_mining - not mining in traditional sense
+    eth_mining: () => ({
+      result: false,
+    }),
+
+    // eth_hashrate
+    eth_hashrate: () => ({
+      result: "0x0",
+    }),
+
+    // eth_getUncleCountByBlockHash
+    eth_getUncleCountByBlockHash: () => ({
+      result: "0x0",
+    }),
+
+    // eth_getUncleCountByBlockNumber
+    eth_getUncleCountByBlockNumber: () => ({
+      result: "0x0",
     }),
   };
 

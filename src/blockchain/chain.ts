@@ -21,6 +21,27 @@ import type {
 const GENESIS_HASH: `0x${string}` = `0x${"0".repeat(64)}`;
 const CHAIN_ID = 31337;
 
+// Fallback responses for common selectors not in ABI
+// Returns sensible defaults so probing contracts doesn't fail
+const SELECTOR_FALLBACKS: Record<string, `0x${string}`> = {
+  // ERC-165: supportsInterface(bytes4) -> false
+  "0x01ffc9a7": `0x${"0".repeat(64)}`,
+  // ERC-20: name() -> "Mock"
+  "0x06fdde03": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000044d6f636b00000000000000000000000000000000000000000000000000000000",
+  // ERC-20: symbol() -> "MOCK"
+  "0x95d89b41": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000044d4f434b00000000000000000000000000000000000000000000000000000000",
+  // ERC-20: decimals() -> 18
+  "0x313ce567": "0x0000000000000000000000000000000000000000000000000000000000000012",
+  // ERC-20: totalSupply() -> 1000000 * 10^18
+  "0x18160ddd": "0x00000000000000000000000000000000000000000000d3c21bcecceda1000000",
+  // ERC-20: balanceOf(address) -> 0
+  "0x70a08231": `0x${"0".repeat(64)}`,
+  // ERC-20: allowance(address,address) -> 0
+  "0xdd62ed3e": `0x${"0".repeat(64)}`,
+  // ERC-721: ownerOf(uint256) -> zero address
+  "0x6352211e": "0x0000000000000000000000000000000000000000000000000000000000000000",
+};
+
 function generateBlockHash(blockNumber: number): `0x${string}` {
   const hex = blockNumber.toString(16).padStart(64, "0");
   return `0x${hex}`;
@@ -319,8 +340,15 @@ export class Blockchain {
         abi: contract.abi,
         data,
       });
-    } catch (err) {
-      throw new DecodeError(to, data, err);
+    } catch {
+      // Function not in ABI - return fallback for common selectors
+      const selector = data.slice(0, 10).toLowerCase();
+      const fallback = SELECTOR_FALLBACKS[selector];
+      if (fallback) {
+        return fallback;
+      }
+      // Unknown selector - return empty
+      return "0x";
     }
 
     const abiFunc = getAbiFunction(contract.abi, decoded.functionName);

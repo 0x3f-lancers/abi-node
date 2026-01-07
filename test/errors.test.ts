@@ -40,12 +40,12 @@ describe("Error Handling", () => {
     ).toThrow(UnknownContractError);
   });
 
-  it("should throw DecodeError for invalid calldata", () => {
-    const invalidData = "0x12345678"; // Invalid selector
+  it("should return 0x for unknown selectors (graceful fallback)", () => {
+    const invalidData = "0x12345678"; // Unknown selector
 
-    expect(() =>
-      blockchain.call(MOCK_ADDRESS, invalidData as `0x${string}`)
-    ).toThrow(DecodeError);
+    // Unknown selectors now return 0x instead of throwing
+    const result = blockchain.call(MOCK_ADDRESS, invalidData as `0x${string}`);
+    expect(result).toBe("0x");
   });
 
   it("should format RevertError correctly in RPC response", async () => {
