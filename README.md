@@ -60,6 +60,13 @@ pnpm abi-node ./abis --port 8545
 RPC_URL=http://localhost:8545
 ```
 
+## Documentation
+
+- Usage & configuration: `docs/usage.md`
+- RPC methods: `docs/rpc-methods.md`
+- FAQ: `docs/faq.md`
+- Contributing: `CONTRIBUTING.md`
+
 ## Features
 
 - **Zero-chain** - No Anvil, no Hardhat node, no Docker
