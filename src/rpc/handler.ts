@@ -234,6 +234,38 @@ export function createRpcHandler(options: HandlerOptions) {
     net_version: () => ({
       result: String(blockchain.chainId),
     }),
+
+    // Mock eth_getBalance - returns a default balance
+    eth_getBalance: () => ({
+      result: "0x56bc75e2d63100000", // 100 ETH in wei
+    }),
+
+    // Mock eth_getCode - returns empty for unknown, 0x1 for known contracts
+    eth_getCode: (params) => {
+      const [address] = params as [string];
+      const isKnown = blockchain.isKnownContract(address as `0x${string}`);
+      return { result: isKnown ? "0x1" : "0x" };
+    },
+
+    // Mock eth_gasPrice
+    eth_gasPrice: () => ({
+      result: "0x3b9aca00", // 1 gwei
+    }),
+
+    // Mock eth_estimateGas
+    eth_estimateGas: () => ({
+      result: "0x5208", // 21000 gas
+    }),
+
+    // Mock eth_getTransactionCount
+    eth_getTransactionCount: () => ({
+      result: "0x0",
+    }),
+
+    // Mock eth_accounts - return empty array
+    eth_accounts: () => ({
+      result: [],
+    }),
   };
 
   // Add proxy-only system methods when proxy is configured

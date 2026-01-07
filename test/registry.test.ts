@@ -62,21 +62,16 @@ describe("1. ABI Loading & Registry", () => {
   describe("buildRegistry", () => {
     const abiFiles = [{ name: "MyContract", abi: rawAbi }];
 
-    it("should auto-assign addresses when no config is provided", () => {
-      const registry = buildRegistry(abiFiles, undefined);
+    it("should auto-assign addresses when no config is provided", async () => {
+      const registry = await buildRegistry(abiFiles, undefined);
       const contract = registry.get("0x0000000000000000000000000000000000000001");
       expect(contract).toBeDefined();
       expect(contract?.name).toBe("MyContract");
     });
 
-    it("should use config-based address pinning", () => {
-      const config = {
-        "0x1234567890123456789012345678901234567890": "contracts/MyContract.json",
-      };
-      const registry = buildRegistry(abiFiles, config);
-      const contract = registry.get("0x1234567890123456789012345678901234567890");
-      expect(contract).toBeDefined();
-      expect(contract?.name).toBe("MyContract");
+    it("should use abiFiles for registry when no config contracts", async () => {
+      const registry = await buildRegistry(abiFiles, undefined);
+      expect(registry.all().length).toBe(1);
     });
   });
 

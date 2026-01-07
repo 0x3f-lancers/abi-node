@@ -14,6 +14,18 @@ export interface OverrideValue {
   revert?: string;
 }
 
+/**
+ * Logging configuration
+ */
+export interface LogConfig {
+  /** Show RPC requests and responses (default: true) */
+  requests?: boolean;
+  /** Show block mining messages (default: true) */
+  blocks?: boolean;
+  /** Only show blocks with transactions, hide empty blocks (default: false) */
+  hideEmptyBlocks?: boolean;
+}
+
 export interface Config {
   port?: number;
   blockTime?: number; // seconds between blocks (default: 1, 0 = instant mining)
@@ -25,10 +37,15 @@ export interface Config {
    * Value: string (simple value) or OverrideValue object
    */
   overrides?: Record<string, string | OverrideValue>;
+  /**
+   * Logging configuration
+   */
+  logging?: LogConfig;
 }
 
-export async function loadConfig(cwd: string): Promise<Config> {
-  const configPath = join(cwd, "abi.config.json");
+export async function loadConfig(cwd: string, configFile = "abi.config.json"): Promise<Config> {
+  // Support absolute paths
+  const configPath = configFile.startsWith("/") ? configFile : join(cwd, configFile);
 
   try {
     const content = await readFile(configPath, "utf-8");

@@ -90,3 +90,54 @@
 ```
 
 - Tests: 71 tests covering all phases
+
+### Phase 5.1: Testing & Developer Experience
+
+#### CLI Improvements
+- Clear error messages when no ABI source specified
+- Helpful error when ABI directory not found (with example structure)
+- Config-only mode: run with just `abi.config.json`, no abiDir required
+- Custom config path: `--config` / `-c` flag
+
+#### Config Contracts Loading
+- `config.contracts` now loads ABIs directly from specified paths
+- Works without abiDir when contracts are defined in config
+- Example: `{ "contracts": { "0x123...": "./contracts/Token.json" } }`
+
+#### Request Logging
+- All RPC requests logged to console with method name
+- Contract call details: `← eth_call to=0x5FbD...0aa3 0x70a08231`
+- Response results: `→ 0x000...0001` or `→ error: message`
+
+#### CORS Support
+- Enabled CORS headers for browser requests
+- Handles preflight OPTIONS requests
+- Works with frontend apps on different ports (e.g., localhost:3000)
+
+#### Logging Configuration
+```json
+{
+  "logging": {
+    "requests": true,
+    "blocks": true,
+    "hideEmptyBlocks": true
+  }
+}
+```
+- `requests`: Show/hide RPC request logs (default: true)
+- `blocks`: Show/hide block mining messages (default: true)
+- `hideEmptyBlocks`: Only show blocks with transactions (default: false)
+
+#### Mock RPC Methods
+- `eth_getBalance`: Returns 100 ETH (no proxy required)
+- `eth_getCode`: Returns 0x1 for known contracts, 0x for unknown
+- `eth_gasPrice`: Returns 1 gwei
+- `eth_estimateGas`: Returns 21000 gas
+- `eth_getTransactionCount`: Returns 0
+- `eth_accounts`: Returns empty array
+
+#### Test Organization
+- Split `phase5.test.ts` into focused test files:
+  - `override.test.ts` - Override system tests
+  - `errors.test.ts` - Error handling tests
+  - `proxy.test.ts` - Proxy mode tests

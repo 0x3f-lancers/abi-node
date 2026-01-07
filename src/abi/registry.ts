@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { Abi } from "viem";
 import type { AbiFile } from "./loader.js";
 
@@ -30,31 +33,63 @@ function generateAddress(index: number): string {
   return `0x${hex}`;
 }
 
-export function buildRegistry(
+/**
+ * Load ABI from a file path
+ */
+async function loadAbiFromPath(filePath: string, cwd: string): Promise<Abi | null> {
+  const fullPath = resolve(cwd, filePath);
+
+  if (!existsSync(fullPath)) {
+    console.warn(`ABI file not found: ${fullPath}`);
+    return null;
+  }
+
+  try {
+    const content = await readFile(fullPath, "utf-8");
+    const parsed = JSON.parse(content);
+
+    // Handle both raw ABI arrays and objects with "abi" property
+    const abi: Abi = Array.isArray(parsed)
+      ? parsed
+      : (parsed as Record<string, unknown>)?.abi as Abi;
+
+    if (!abi) {
+      console.warn(`No ABI found in: ${filePath}`);
+      return null;
+    }
+
+    return abi;
+  } catch (err) {
+    console.warn(`Failed to load ABI from ${filePath}: ${err instanceof Error ? err.message : "Unknown error"}`);
+    return null;
+  }
+}
+
+export async function buildRegistry(
   abiFiles: AbiFile[],
-  configContracts?: Record<string, string>
-): ContractRegistry {
+  configContracts?: Record<string, string>,
+  cwd = process.cwd()
+): Promise<ContractRegistry> {
   const registry = new ContractRegistry();
 
-  // If config has contract mappings, use those
+  // First, load contracts from config (address -> path mapping)
   if (configContracts) {
-    const addressToName = new Map<string, string>();
-
-    // Invert: config is address -> path, we need to match by filename
     for (const [address, path] of Object.entries(configContracts)) {
-      const name = path.split("/").pop()?.replace(".json", "") ?? path;
-      addressToName.set(name, address);
+      const abi = await loadAbiFromPath(path, cwd);
+      if (abi) {
+        const name = path.split("/").pop()?.replace(".json", "") ?? path;
+        registry.register(address, name, abi);
+      }
     }
+  }
 
-    for (const { name, abi } of abiFiles) {
-      const address = addressToName.get(name) ?? generateAddress(registry.all().length);
-      registry.register(address, name, abi);
-    }
-  } else {
-    // Auto-assign addresses
-    for (let i = 0; i < abiFiles.length; i++) {
-      const { name, abi } = abiFiles[i];
-      registry.register(generateAddress(i), name, abi);
+  // Then, add any abiFiles that weren't already registered
+  // Auto-assign addresses for files not in config
+  for (const { name, abi } of abiFiles) {
+    // Check if already registered by config
+    const alreadyRegistered = registry.all().some(c => c.name === name);
+    if (!alreadyRegistered) {
+      registry.register(generateAddress(registry.all().length), name, abi);
     }
   }
 
