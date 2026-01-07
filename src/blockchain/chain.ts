@@ -6,6 +6,7 @@ import {
 } from "viem";
 import type { ContractRegistry } from "../abi/registry.js";
 import { generateDefaultValues } from "../abi/defaults.js";
+import { findMatchingEvents, generateEventLog } from "../abi/events.js";
 import { StateStore } from "../state/store.js";
 import type {
   Block,
@@ -252,23 +253,40 @@ export class Blockchain {
         }
       }
 
-      // A mock log for testing purposes. A real implementation would
-      // decode ABI events and match them.
-      const log: Log = {
-        address: tx.to,
-        topics: [
-          `0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef`, // Mock Transfer event signature
-          `0x${tx.from.slice(2).padStart(64, "0")}`,
-        ],
-        data: "0x",
-        blockNumber,
-        blockHash,
-        transactionHash: tx.hash,
-        transactionIndex: txIndex,
-        logIndex: 0,
-      };
+      // Generate event logs based on ABI events
+      const matchingEvents = findMatchingEvents(
+        contract.abi,
+        decoded.functionName
+      );
+      const logs: Log[] = [];
 
-      return [log];
+      // Get function input names for better event parameter matching
+      const abiFunc = getAbiFunction(contract.abi, decoded.functionName);
+      const functionInputNames = abiFunc?.inputs.map((i) => i.name ?? "") ?? [];
+
+      for (let i = 0; i < matchingEvents.length; i++) {
+        const event = matchingEvents[i];
+        const { topics, data } = generateEventLog(
+          event,
+          tx.to,
+          tx.from,
+          decoded.args ?? [],
+          functionInputNames
+        );
+
+        logs.push({
+          address: tx.to,
+          topics,
+          data,
+          blockNumber,
+          blockHash,
+          transactionHash: tx.hash,
+          transactionIndex: txIndex,
+          logIndex: i,
+        });
+      }
+
+      return logs;
     } catch {
       return [];
     }

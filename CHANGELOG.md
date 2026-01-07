@@ -44,3 +44,14 @@
 - Console output shows block mining with transaction count
 - Graceful shutdown stops mining loop
 - Wrote test cases.
+
+### Phase 4: Events & Logs - Complete
+
+- Event matching: functions like `transfer` emit corresponding `Transfer` events
+- Smart parameter matching: event parameters matched by name to function inputs
+- Special handling: `from`/`sender` parameters automatically use tx sender address
+- Common pattern support: `to`→`recipient`/`dst`, `amount`→`value`/`wad` aliases
+- Proper topic encoding: indexed parameters encoded as topics (1-3), non-indexed as data
+- Event signature hashing: topic0 contains keccak256 of event signature
+- `eth_getLogs` filters by address, block range, and topics
+- Tests: New tests covering phase events & logs.
