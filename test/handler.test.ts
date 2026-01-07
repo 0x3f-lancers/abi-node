@@ -5,7 +5,7 @@ import type { Blockchain } from "../src/blockchain/chain";
 describe("Optional: RPC Handler", () => {
   it("should return a Method not found error for unknown methods", async () => {
     const mockBlockchain = {} as Blockchain;
-    const handler = createRpcHandler(mockBlockchain);
+    const handler = createRpcHandler({ blockchain: mockBlockchain });
 
     const result = await handler("unknown_method", []);
 
@@ -19,11 +19,12 @@ describe("Optional: RPC Handler", () => {
 
   it("should format blockchain errors into a valid JSON-RPC error", async () => {
     const mockBlockchain = {
+      isKnownContract: () => true,
       call: () => {
         throw new Error("VM execution reverted");
       },
     } as unknown as Blockchain;
-    const handler = createRpcHandler(mockBlockchain);
+    const handler = createRpcHandler({ blockchain: mockBlockchain });
 
     const result = await handler("eth_call", [
       { to: "0x123", data: "0x456" },
@@ -41,7 +42,7 @@ describe("Optional: RPC Handler", () => {
     const mockBlockchain = {
       chainId: 1337,
     } as unknown as Blockchain;
-    const handler = createRpcHandler(mockBlockchain);
+    const handler = createRpcHandler({ blockchain: mockBlockchain });
 
     const result = await handler("eth_chainId", []);
     expect(result).toEqual({ result: "0x539" });

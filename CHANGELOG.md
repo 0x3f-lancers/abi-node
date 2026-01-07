@@ -55,3 +55,38 @@
 - Event signature hashing: topic0 contains keccak256 of event signature
 - `eth_getLogs` filters by address, block range, and topics
 - Tests: New tests covering phase events & logs.
+
+### Phase 5: Polish - Complete
+
+#### Proxy Mode
+- Forward unknown contract calls to upstream RPC when `proxyRpc` is configured
+- System methods (`eth_getBalance`, `eth_getCode`, `eth_gasPrice`, etc.) proxied to upstream
+- Known contracts still mocked locally for hybrid mock/real setup
+- Unknown RPC methods forwarded to proxy if available
+
+#### Override System
+- Per-function return value overrides via `abi.config.json`
+- Support for `ContractName.function` or `0xAddress.function` formats
+- Simple value overrides: `"Token.balanceOf": "1000000000000000000"`
+- Multi-value overrides: `"Vault.getReserves": { "values": ["1000", "2000"] }`
+- Revert simulation: `"Token.transfer": { "revert": "Transfer disabled" }`
+- Override precedence: Override → State → Default
+
+#### Error Handling
+- Typed error classes: `UnknownContractError`, `DecodeError`, `RevertError`
+- Improved error messages with context (address, selector, reason)
+- Proper JSON-RPC error codes (3 for revert, -32000 for server errors)
+- Better error response formatting in RPC handler
+
+#### Config Format
+```json
+{
+  "proxyRpc": "https://sepolia.infura.io/v3/...",
+  "overrides": {
+    "Token.balanceOf": "1000000000000000000",
+    "Token.transfer": { "revert": "Transfer disabled" }
+  }
+}
+```
+
+- Tests: 71 tests covering all phases

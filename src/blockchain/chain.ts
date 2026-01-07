@@ -5,9 +5,11 @@ import {
   type AbiFunction,
 } from "viem";
 import type { ContractRegistry } from "../abi/registry.js";
-import { generateDefaultValues } from "../abi/defaults.js";
+import { generateDefaultValue, generateDefaultValues } from "../abi/defaults.js";
 import { findMatchingEvents, generateEventLog } from "../abi/events.js";
 import { StateStore } from "../state/store.js";
+import type { OverrideStore, ResolvedOverride } from "../state/overrides.js";
+import { UnknownContractError, DecodeError, RevertError } from "../errors.js";
 import type {
   Block,
   Transaction,
@@ -43,12 +45,15 @@ export class Blockchain {
   private txNonce = 0;
   private miningInterval: NodeJS.Timeout | null = null;
   private receipts: Map<string, TransactionReceipt> = new Map();
+  private overrides?: OverrideStore;
 
   constructor(
     private registry: ContractRegistry,
     private blockTime: number = 1,
-    private onBlockMined?: (block: Block) => void
+    private onBlockMined?: (block: Block) => void,
+    overrides?: OverrideStore
   ) {
+    this.overrides = overrides;
     // Create genesis block
     this.blocks.push({
       number: 0,
@@ -74,6 +79,13 @@ export class Blockchain {
 
   get pendingCount(): number {
     return this.mempool.length;
+  }
+
+  /**
+   * Check if an address is a known (registered) contract
+   */
+  isKnownContract(address: `0x${string}`): boolean {
+    return this.registry.get(address) !== undefined;
   }
 
   /**
@@ -298,20 +310,31 @@ export class Blockchain {
   call(to: `0x${string}`, data: `0x${string}`): `0x${string}` {
     const contract = this.registry.get(to);
     if (!contract) {
-      throw new Error(`Unknown contract address: ${to}`);
+      throw new UnknownContractError(to);
     }
 
-    const decoded = decodeFunctionData({
-      abi: contract.abi,
-      data,
-    });
+    let decoded;
+    try {
+      decoded = decodeFunctionData({
+        abi: contract.abi,
+        data,
+      });
+    } catch (err) {
+      throw new DecodeError(to, data, err);
+    }
 
     const abiFunc = getAbiFunction(contract.abi, decoded.functionName);
     if (!abiFunc || !abiFunc.outputs || abiFunc.outputs.length === 0) {
       return "0x";
     }
 
-    // Check state first, then fall back to defaults
+    // Check overrides first (highest precedence)
+    if (this.overrides?.has(to, decoded.functionName)) {
+      const override = this.overrides.get(to, decoded.functionName)!;
+      return this.applyOverride(override, abiFunc);
+    }
+
+    // Check state, then fall back to defaults
     const storedValues = this.state.get(
       to,
       decoded.functionName,
@@ -320,6 +343,69 @@ export class Blockchain {
     const values = storedValues ?? generateDefaultValues(abiFunc.outputs);
 
     return encodeAbiParameters(abiFunc.outputs, values);
+  }
+
+  /**
+   * Apply an override to generate return value
+   */
+  private applyOverride(
+    override: ResolvedOverride,
+    abiFunc: AbiFunction
+  ): `0x${string}` {
+    if (override.type === "revert") {
+      throw new RevertError(override.revertReason ?? "");
+    }
+
+    const outputs = abiFunc.outputs ?? [];
+    const values: unknown[] = [];
+
+    if (override.values && override.values.length > 0) {
+      // Multiple return values
+      for (let i = 0; i < outputs.length; i++) {
+        values.push(
+          this.parseOverrideValue(outputs[i].type, override.values[i] ?? "0")
+        );
+      }
+    } else if (override.value !== undefined) {
+      // Single return value
+      if (outputs.length === 1) {
+        values.push(this.parseOverrideValue(outputs[0].type, override.value));
+      } else {
+        // If function has multiple outputs but only one value provided,
+        // use it for first output and defaults for rest
+        values.push(this.parseOverrideValue(outputs[0].type, override.value));
+        for (let i = 1; i < outputs.length; i++) {
+          values.push(generateDefaultValue(outputs[i]));
+        }
+      }
+    } else {
+      // No value specified, use defaults
+      return encodeAbiParameters(outputs, generateDefaultValues(outputs));
+    }
+
+    return encodeAbiParameters(outputs, values);
+  }
+
+  /**
+   * Parse a string value to the appropriate type
+   */
+  private parseOverrideValue(type: string, value: string): unknown {
+    if (type.startsWith("uint") || type.startsWith("int")) {
+      return BigInt(value);
+    }
+    if (type === "bool") {
+      return value === "true" || value === "1";
+    }
+    if (type === "address") {
+      return value;
+    }
+    if (type === "string") {
+      return value;
+    }
+    if (type.startsWith("bytes")) {
+      return value.startsWith("0x") ? value : `0x${value}`;
+    }
+    return value;
   }
 
   /**

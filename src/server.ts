@@ -4,7 +4,9 @@ import { loadAbisFromDirectory } from "./abi/loader.js";
 import { buildRegistry } from "./abi/registry.js";
 import { loadConfig } from "./config.js";
 import { createRpcHandler } from "./rpc/handler.js";
+import { ProxyClient } from "./rpc/proxy.js";
 import { Blockchain } from "./blockchain/chain.js";
+import { OverrideStore } from "./state/overrides.js";
 
 interface ServerOptions {
   port: number;
@@ -22,7 +24,15 @@ export async function startServer(options: ServerOptions) {
   const abiFiles = await loadAbisFromDirectory(abiDir);
   const registry = buildRegistry(abiFiles, config.contracts);
 
-  // Create blockchain with mining callback
+  // Create proxy client if configured
+  const proxy = config.proxyRpc ? new ProxyClient(config.proxyRpc) : undefined;
+
+  // Create override store if configured
+  const overrides = config.overrides
+    ? new OverrideStore(config.overrides, registry)
+    : undefined;
+
+  // Create blockchain with mining callback and overrides
   const blockchain = new Blockchain(registry, blockTime, (block) => {
     const txCount = block.transactions.length;
     if (txCount > 0) {
@@ -40,10 +50,10 @@ export async function startServer(options: ServerOptions) {
     } else {
       console.log(chalk.dim(`[block ${block.number}] mined (empty)`));
     }
-  });
+  }, overrides);
 
-  // Create RPC handler with blockchain
-  const handleRpcRequest = createRpcHandler(blockchain);
+  // Create RPC handler with blockchain and proxy
+  const handleRpcRequest = createRpcHandler({ blockchain, proxy });
 
   const server = Fastify();
 
@@ -73,6 +83,11 @@ export async function startServer(options: ServerOptions) {
     )
   );
 
+  // Print proxy mode status
+  if (proxy) {
+    console.log(chalk.dim(`Proxy mode: ${config.proxyRpc}`));
+  }
+
   // Print registered contracts
   const contracts = registry.all();
   if (contracts.length > 0) {
@@ -82,6 +97,11 @@ export async function startServer(options: ServerOptions) {
     }
   } else {
     console.log(chalk.yellow(`\nNo ABI files found in ${abiDir}`));
+  }
+
+  // Print override count
+  if (overrides && overrides.size > 0) {
+    console.log(chalk.dim(`\nOverrides: ${overrides.size} configured`));
   }
 
   console.log(chalk.dim("\nGenesis block created (block 0)"));

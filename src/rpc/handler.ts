@@ -1,9 +1,15 @@
 import { toHex } from "viem";
 import type { Blockchain } from "../blockchain/chain.js";
+import { ProxyClient, ProxyError } from "./proxy.js";
+import {
+  AbiNodeError,
+  UnknownContractError,
+  RevertError,
+} from "../errors.js";
 
 type RpcResult =
   | { result: unknown }
-  | { error: { code: number; message: string } };
+  | { error: { code: number; message: string; data?: unknown } };
 
 interface EthCallParams {
   to: string;
@@ -11,8 +17,29 @@ interface EthCallParams {
   from?: string;
 }
 
-export function createRpcHandler(blockchain: Blockchain) {
-  const handlers: Record<string, (params: unknown[]) => RpcResult> = {
+interface HandlerOptions {
+  blockchain: Blockchain;
+  proxy?: ProxyClient;
+}
+
+// System methods that should be proxied when proxy is configured
+const PROXY_SYSTEM_METHODS = [
+  "eth_getBalance",
+  "eth_getCode",
+  "eth_gasPrice",
+  "eth_estimateGas",
+  "eth_getTransactionCount",
+  "eth_accounts",
+  "eth_getStorageAt",
+];
+
+export function createRpcHandler(options: HandlerOptions) {
+  const { blockchain, proxy } = options;
+
+  const handlers: Record<
+    string,
+    (params: unknown[]) => RpcResult | Promise<RpcResult>
+  > = {
     eth_chainId: () => ({
       result: toHex(blockchain.chainId),
     }),
@@ -21,10 +48,27 @@ export function createRpcHandler(blockchain: Blockchain) {
       result: toHex(blockchain.blockNumber),
     }),
 
-    eth_call: (params) => {
+    eth_call: async (params) => {
       const [callParams] = params as [EthCallParams];
       const { to, data } = callParams;
 
+      // Check if contract is known locally
+      const isKnown = blockchain.isKnownContract(to as `0x${string}`);
+
+      // If unknown and proxy configured, forward to upstream
+      if (!isKnown && proxy) {
+        try {
+          const result = await proxy.call<string>("eth_call", params);
+          return { result };
+        } catch (err) {
+          if (err instanceof ProxyError) {
+            return { error: { code: err.code, message: err.message, data: err.data } };
+          }
+          return { error: { code: -32603, message: "Proxy error" } };
+        }
+      }
+
+      // Local mock execution
       try {
         const result = blockchain.call(
           to as `0x${string}`,
@@ -32,20 +76,34 @@ export function createRpcHandler(blockchain: Blockchain) {
         );
         return { result };
       } catch (err) {
-        return {
-          error: {
-            code: -32000,
-            message:
-              err instanceof Error ? err.message : "Failed to process call",
-          },
-        };
+        return formatError(err);
       }
     },
 
-    eth_sendTransaction: (params) => {
+    eth_sendTransaction: async (params) => {
       const [txParams] = params as [EthCallParams & { value?: string }];
-      const { to, data, from = "0x0000000000000000000000000000000000000000" } = txParams;
+      const {
+        to,
+        data,
+        from = "0x0000000000000000000000000000000000000000",
+      } = txParams;
       const value = txParams.value ? BigInt(txParams.value) : 0n;
+
+      // Check if contract is known locally
+      const isKnown = blockchain.isKnownContract(to as `0x${string}`);
+
+      // If unknown and proxy configured, forward to upstream
+      if (!isKnown && proxy) {
+        try {
+          const result = await proxy.call<string>("eth_sendTransaction", params);
+          return { result };
+        } catch (err) {
+          if (err instanceof ProxyError) {
+            return { error: { code: err.code, message: err.message, data: err.data } };
+          }
+          return { error: { code: -32603, message: "Proxy error" } };
+        }
+      }
 
       try {
         const txHash = blockchain.sendTransaction(
@@ -54,24 +112,17 @@ export function createRpcHandler(blockchain: Blockchain) {
           data as `0x${string}`,
           value
         );
-
         return { result: txHash };
       } catch (err) {
-        return {
-          error: {
-            code: -32000,
-            message:
-              err instanceof Error
-                ? err.message
-                : "Failed to process transaction",
-          },
-        };
+        return formatError(err);
       }
     },
 
     eth_getTransactionReceipt: (params) => {
       const [txHash] = params as [string];
-      const receipt = blockchain.getTransactionReceipt(txHash as `0x${string}`);
+      const receipt = blockchain.getTransactionReceipt(
+        txHash as `0x${string}`
+      );
 
       if (!receipt) {
         // Check if pending
@@ -185,6 +236,23 @@ export function createRpcHandler(blockchain: Blockchain) {
     }),
   };
 
+  // Add proxy-only system methods when proxy is configured
+  if (proxy) {
+    for (const method of PROXY_SYSTEM_METHODS) {
+      handlers[method] = async (params) => {
+        try {
+          const result = await proxy.call(method, params);
+          return { result };
+        } catch (err) {
+          if (err instanceof ProxyError) {
+            return { error: { code: err.code, message: err.message, data: err.data } };
+          }
+          return { error: { code: -32603, message: `Failed to proxy ${method}` } };
+        }
+      };
+    }
+  }
+
   return async function handleRpcRequest(
     method: string,
     params: unknown[]
@@ -192,6 +260,17 @@ export function createRpcHandler(blockchain: Blockchain) {
     const handler = handlers[method];
 
     if (!handler) {
+      // If proxy exists, try forwarding unknown methods
+      if (proxy) {
+        try {
+          const result = await proxy.call(method, params);
+          return { result };
+        } catch (err) {
+          if (err instanceof ProxyError) {
+            return { error: { code: err.code, message: err.message, data: err.data } };
+          }
+        }
+      }
       return {
         error: {
           code: -32601,
@@ -201,5 +280,35 @@ export function createRpcHandler(blockchain: Blockchain) {
     }
 
     return handler(params);
+  };
+}
+
+/**
+ * Format an error for JSON-RPC response
+ */
+function formatError(err: unknown): RpcResult {
+  if (err instanceof RevertError) {
+    return {
+      error: {
+        code: 3,
+        message: `execution reverted: ${err.message}`,
+        data: err.data,
+      },
+    };
+  }
+  if (err instanceof AbiNodeError) {
+    return {
+      error: {
+        code: err.code,
+        message: err.message,
+        data: err.data,
+      },
+    };
+  }
+  return {
+    error: {
+      code: -32000,
+      message: err instanceof Error ? err.message : "Internal error",
+    },
   };
 }
