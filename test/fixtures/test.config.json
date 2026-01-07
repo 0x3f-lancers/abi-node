@@ -1,0 +1,16 @@
+{
+  "blockTime": 0,
+  "logging": {
+    "requests": false,
+    "blocks": false
+  },
+  "contracts": {
+    "0x1000000000000000000000000000000000000001": "./test/fixtures/Stateful.abi.json",
+    "0x2000000000000000000000000000000000000002": "./test/fixtures/Counter.abi.json"
+  },
+  "overrides": {
+    "RevertContract.alwaysReverts": {
+      "revert": "This function always reverts"
+    }
+  }
+}

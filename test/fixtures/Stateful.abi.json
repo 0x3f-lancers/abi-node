@@ -1,0 +1,24 @@
+[
+  {
+    "type": "function",
+    "name": "set",
+    "inputs": [{ "name": "value", "type": "uint256" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "get",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "ValueSet",
+    "inputs": [
+      { "name": "sender", "type": "address", "indexed": true },
+      { "name": "value", "type": "uint256", "indexed": false }
+    ]
+  }
+]

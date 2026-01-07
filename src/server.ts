@@ -167,6 +167,9 @@ export async function startServer(options: ServerOptions) {
     server.close();
     process.exit(0);
   });
+
+  // Return server and blockchain so tests can control them
+  return { server, blockchain };
 }
 
 /**

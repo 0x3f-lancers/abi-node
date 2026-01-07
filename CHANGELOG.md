@@ -173,3 +173,43 @@
 - Supports both directory scanning and config `contracts` paths
 - Mix `.json` and `.ts` files in the same directory
 - Tests: 76 tests covering all phases
+
+### Phase 5.3: Integration Testing Setup
+
+#### Server Control for Tests
+
+- `startServer()` now returns `{ server, blockchain }` for test control
+- Tests can start/stop server instances programmatically
+- Enables proper cleanup in `afterAll` hooks
+
+#### Test Helpers (`test/integration/helper.ts`)
+
+- `startTestServer(options?)`: Starts server on random port (port 0)
+- `stopTestServer(ctx)`: Graceful shutdown with mining stop
+- Returns `TestContext` with:
+  - `publicClient` / `walletClient` from viem
+  - `rpcUrl` and `port` for direct access
+  - `server` and `blockchain` instances
+
+#### Test Fixtures (`test/fixtures/`)
+
+- `test.config.json`: Test configuration with instant mining, disabled logging
+- `Stateful.abi.json`: Simple get/set contract with ValueSet event
+- `Counter.abi.json`: Counter contract with increment/decrement
+
+#### Comprehensive E2E Tests
+
+- **Basic E2E** (`e2e.test.ts`): 9 tests
+  - `eth_blockNumber`, `eth_chainId`, `eth_getBlockByNumber`
+  - Server health checks, concurrent request handling
+
+- **With Contracts** (`with-contracts.test.ts`): 20 tests
+  - `readContract`: Decoded return values from registered contracts
+  - `writeContract`: State changes and verification
+  - Transaction receipts: Fields, event logs, unknown hash handling
+  - Event logs: `eth_getLogs` filtering by address and block range
+  - Error cases: Unknown contracts, unknown selectors
+  - EIP-1559: `getGasPrice`, `estimateGas`, `getFeeHistory`, `getBalance`, `getCode`
+  - Concurrent operations: Parallel reads, sequential writes
+
+- Tests: 105 tests covering all phases
