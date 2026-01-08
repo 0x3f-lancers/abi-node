@@ -103,6 +103,13 @@ export class Blockchain {
   }
 
   /**
+   * Update the override store (used for hot reload)
+   */
+  setOverrides(overrides: OverrideStore | undefined): void {
+    this.overrides = overrides;
+  }
+
+  /**
    * Check if an address is a known (registered) contract
    */
   isKnownContract(address: `0x${string}`): boolean {

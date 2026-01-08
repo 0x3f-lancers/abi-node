@@ -25,6 +25,10 @@ export class ContractRegistry {
   all(): ContractEntry[] {
     return Array.from(this.contracts.values());
   }
+
+  clear(): void {
+    this.contracts.clear();
+  }
 }
 
 // Generate deterministic addresses for auto-assignment
@@ -152,13 +156,16 @@ async function loadAbiFromPath(filePath: string, cwd: string): Promise<Abi | nul
   }
 }
 
-export async function buildRegistry(
+/**
+ * Populate a registry with contracts from config
+ * Used for both initial build and hot reload
+ */
+export async function populateRegistry(
+  registry: ContractRegistry,
   abiFiles: AbiFile[],
   configContracts?: Record<string, string>,
   cwd = process.cwd()
-): Promise<ContractRegistry> {
-  const registry = new ContractRegistry();
-
+): Promise<void> {
   // First, load contracts from config (address -> path mapping)
   if (configContracts) {
     for (const [address, path] of Object.entries(configContracts)) {
@@ -179,6 +186,14 @@ export async function buildRegistry(
       registry.register(generateAddress(registry.all().length), name, abi);
     }
   }
+}
 
+export async function buildRegistry(
+  abiFiles: AbiFile[],
+  configContracts?: Record<string, string>,
+  cwd = process.cwd()
+): Promise<ContractRegistry> {
+  const registry = new ContractRegistry();
+  await populateRegistry(registry, abiFiles, configContracts, cwd);
   return registry;
 }

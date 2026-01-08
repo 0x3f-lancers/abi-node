@@ -213,3 +213,36 @@
   - Concurrent operations: Parallel reads, sequential writes
 
 - Tests: 105 tests covering all phases
+
+### Phase 5.4: Hot Reload
+
+#### Config File Watching
+
+- Auto-reloads `abi.config.json` when file changes (no restart needed)
+- Uses chokidar for reliable cross-platform file watching
+- Preserves blockchain state (blocks, transactions, receipts) during reload
+- Only reloads contracts and overrides from config
+
+#### What Gets Reloaded
+
+- **Contracts**: Registry cleared and repopulated from updated `config.contracts`
+- **Overrides**: Override store rebuilt with new config values
+- **Not reloaded**: Blockchain state, mining settings, port (requires restart)
+
+#### Console Output
+
+```
+[hot-reload] Config file changed, reloading...
+Registered contracts:
+  0x1234... → Token
+  0x5678... → Vault
+Overrides: 3 configured
+[hot-reload] Config reloaded successfully
+```
+
+#### Implementation
+
+- Added `clear()` method to ContractRegistry
+- Added `setOverrides()` method to Blockchain
+- Added `populateRegistry()` helper for registry updates
+- Single SIGINT handler for graceful cleanup of watcher + server

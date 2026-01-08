@@ -1,7 +1,10 @@
 import Fastify from "fastify";
 import chalk from "chalk";
+import chokidar from "chokidar";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { loadAbisFromDirectory } from "./abi/loader.js";
-import { buildRegistry } from "./abi/registry.js";
+import { buildRegistry, populateRegistry, type ContractRegistry } from "./abi/registry.js";
 import { loadConfig, type LogConfig } from "./config.js";
 import { createRpcHandler } from "./rpc/handler.js";
 import { ProxyClient } from "./rpc/proxy.js";
@@ -161,9 +164,68 @@ export async function startServer(options: ServerOptions) {
   // Start mining
   blockchain.startMining();
 
-  // Graceful shutdown
+  // Hot reload config file
+  const configFile = configPath ?? "abi.config.json";
+  const configFullPath = resolve(process.cwd(), configFile);
+  let watcher: ReturnType<typeof chokidar.watch> | null = null;
+
+  if (existsSync(configFullPath)) {
+    watcher = chokidar.watch(configFullPath, {
+      ignoreInitial: true,
+    });
+
+    watcher.on("change", async () => {
+      console.log(chalk.cyan("\n[hot-reload] Config file changed, reloading..."));
+
+      try {
+        // Reload config
+        const newConfig = await loadConfig(process.cwd(), configPath);
+
+        // Clear and repopulate registry
+        registry.clear();
+        await populateRegistry(registry, abiFiles, newConfig.contracts);
+
+        // Update overrides
+        const newOverrides = newConfig.overrides
+          ? new OverrideStore(newConfig.overrides, registry)
+          : undefined;
+        blockchain.setOverrides(newOverrides);
+
+        // Update logging settings (mutate in place so callback sees changes)
+        logging.requests = newConfig.logging?.requests ?? true;
+        logging.blocks = newConfig.logging?.blocks ?? true;
+        logging.hideEmptyBlocks = newConfig.logging?.hideEmptyBlocks ?? false;
+
+        // Log updated contracts
+        const contracts = registry.all();
+        if (contracts.length > 0) {
+          console.log(chalk.dim("Registered contracts:"));
+          for (const contract of contracts) {
+            console.log(chalk.dim(`  ${contract.address} → ${contract.name}`));
+          }
+        } else {
+          console.log(chalk.yellow("No contracts registered"));
+        }
+
+        // Log override count
+        if (newOverrides && newOverrides.size > 0) {
+          console.log(chalk.dim(`Overrides: ${newOverrides.size} configured`));
+        }
+
+        // Log logging settings if changed
+        console.log(chalk.dim(`Logging: requests=${logging.requests}, blocks=${logging.blocks}, hideEmptyBlocks=${logging.hideEmptyBlocks}`));
+
+        console.log(chalk.green("[hot-reload] Config reloaded successfully\n"));
+      } catch (err) {
+        console.log(chalk.red(`[hot-reload] Failed to reload config: ${err instanceof Error ? err.message : "Unknown error"}\n`));
+      }
+    });
+  }
+
+  // Graceful shutdown (single handler for all cleanup)
   process.on("SIGINT", () => {
     blockchain.stopMining();
+    watcher?.close();
     server.close();
     process.exit(0);
   });
