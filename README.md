@@ -70,11 +70,15 @@ RPC_URL=http://localhost:8545
 ## Features
 
 - **Zero-chain** - No Anvil, no Hardhat node, no Docker
+- **Lightweight** - Minimal memory footprint, instant startup
 - **ABI-first** - If you have the interface, you have the mock
 - **Stateful** - Writes persist in memory, reads reflect them
 - **Realistic mining** - Mempool, blocks, pending transactions
 - **Event logs** - Indexers and subgraphs work out of the box
 - **Drop-in** - Standard JSON-RPC, works with any Web3 library
+- **TypeScript ABIs** - Supports viem-style `.ts` exports
+- **Hot reload** - Edit config, server updates instantly
+- **Override system** - Custom return values with argument matching
 
 ## Supported Methods
 
@@ -91,7 +95,13 @@ RPC_URL=http://localhost:8545
 
 ## Configuration
 
-Create `abi.config.json` to customize behavior:
+Initialize with defaults:
+
+```bash
+abi-node init
+```
+
+Or create `abi.config.json` manually:
 
 ```json
 {
@@ -99,7 +109,19 @@ Create `abi.config.json` to customize behavior:
   "blockTime": 1,
   "contracts": {
     "0x1234...": "./abis/Token.json",
-    "0x5678...": "./abis/Vault.json"
+    "0x5678...": "./abis/Staking.ts"
+  },
+  "overrides": {
+    "Token.balanceOf": "1000000000000000000",
+    "Token.balanceOf(0xABC..., 1)": "5000000000000000000",
+    "Staking.getUserDetails": {
+      "values": ["1000", "500", "true"]
+    }
+  },
+  "logging": {
+    "requests": true,
+    "blocks": true,
+    "hideEmptyBlocks": true
   }
 }
 ```
@@ -108,7 +130,48 @@ Create `abi.config.json` to customize behavior:
 | ----------- | ------- | ---------------------------------------------- |
 | `port`      | 8545    | Server port                                    |
 | `blockTime` | 1       | Seconds between blocks (0 = instant mining)   |
-| `contracts` | -       | Map contract addresses to ABI files           |
+| `contracts` | -       | Map contract addresses to ABI files (.json or .ts) |
+| `overrides` | -       | Custom return values per function             |
+| `logging`   | -       | Control console output                        |
+
+## Overrides
+
+Return custom values for specific functions:
+
+```json
+{
+  "overrides": {
+    // Simple value
+    "Token.totalSupply": "1000000000000000000000",
+
+    // Multiple return values (tuple/struct)
+    "Staking.getUserInfo": {
+      "values": ["1000", "500", "1680000000", "true"]
+    },
+
+    // Argument-specific override
+    "Token.balanceOf(0xABC123...)": "5000000000000000000",
+
+    // With multiple args
+    "Staking.getStake(0xABC..., 1)": {
+      "values": ["1000", "true"]
+    },
+
+    // Simulate revert
+    "Token.transfer": { "revert": "Transfers disabled" }
+  }
+}
+```
+
+**Lookup order:** Argument-specific → Generic → System defaults
+
+## Hot Reload
+
+Edit `abi.config.json` while the server is running. Changes to contracts, overrides, and logging settings apply instantly without restart.
+
+## Compatibility
+
+Tested and verified with **viem** and **wagmi**. Should work with ethers.js and other Web3 libraries that use standard JSON-RPC, but not extensively tested yet. If you encounter issues with other libraries, please open an issue.
 
 ## Why Not Anvil/Hardhat?
 
@@ -120,6 +183,7 @@ Those are fantastic tools—for testing **contract logic**.
 | -------------- | ----------- | -------------- |
 | Needs Solidity | No          | Yes            |
 | Startup time   | Instant     | Seconds        |
+| Memory         | Lightweight | Heavy          |
 | Purpose        | Integration | Contract logic |
 | Complexity     | Minimal     | Full EVM       |
 

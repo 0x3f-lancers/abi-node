@@ -246,3 +246,51 @@ Overrides: 3 configured
 - Added `setOverrides()` method to Blockchain
 - Added `populateRegistry()` helper for registry updates
 - Single SIGINT handler for graceful cleanup of watcher + server
+
+### Phase 5.5: Override System Enhancements
+
+#### Argument-Based Override Matching
+
+- Override specific function calls based on arguments
+- Format: `"Contract.function(arg1, arg2)"` for argument-specific overrides
+- Generic `"Contract.function"` serves as fallback when no arg match
+- Lookup order: Argument-specific → Generic → System defaults
+- Backward compatible with existing configs
+
+```json
+{
+  "overrides": {
+    "Token.balanceOf": "1000000000000000000",
+    "Token.balanceOf(0xABC123...)": "5000000000000000000",
+    "Staking.getStake(0xABC..., 1)": {
+      "values": ["1000", "true"]
+    }
+  }
+}
+```
+
+#### Tuple/Struct Return Types
+
+- Proper encoding for functions returning tuples/structs
+- Components parsed individually based on ABI type definitions
+- Works with complex nested structures
+
+#### Array Return Types
+
+- Support for `uint256[]`, `address[]`, and other array types
+- All values passed together in `values` array
+
+#### Auto-Detection
+
+- Arrays in `value` field auto-detected and treated as `values`
+- `{ "value": ["1", "2", "3"] }` now works same as `{ "values": ["1", "2", "3"] }`
+
+#### Logging Settings Hot Reload
+
+- `hideEmptyBlocks` now reloads correctly with other settings
+- All logging config mutated in place for immediate effect
+
+#### Bug Fixes
+
+- Fixed bool parsing: handles actual boolean `true` in addition to string `"true"`
+- Fixed undefined value fallback in multi-value overrides

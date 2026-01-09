@@ -364,8 +364,10 @@ export class Blockchain {
     }
 
     // Check overrides first (highest precedence)
-    if (this.overrides?.has(to, decoded.functionName)) {
-      const override = this.overrides.get(to, decoded.functionName)!;
+    // Pass decoded.args for argument-specific override matching
+    const decodedArgs = decoded.args as readonly unknown[] | undefined;
+    if (this.overrides?.has(to, decoded.functionName, decodedArgs)) {
+      const override = this.overrides.get(to, decoded.functionName, decodedArgs)!;
       return this.applyOverride(override, abiFunc);
     }
 
@@ -395,11 +397,27 @@ export class Blockchain {
     const values: unknown[] = [];
 
     if (override.values && override.values.length > 0) {
-      // Multiple return values
-      for (let i = 0; i < outputs.length; i++) {
-        values.push(
-          this.parseOverrideValue(outputs[i].type, override.values[i] ?? "0")
-        );
+      // Check if single output is a tuple (struct) - parse each value by component type
+      if (outputs.length === 1 && outputs[0].type === "tuple" && "components" in outputs[0] && outputs[0].components) {
+        const components = outputs[0].components;
+        const tupleValues: unknown[] = [];
+        for (let i = 0; i < components.length; i++) {
+          tupleValues.push(
+            this.parseOverrideValue(components[i].type, override.values[i] ?? "0")
+          );
+        }
+        values.push(tupleValues);
+      }
+      // Check if single output is an array type - pass all values to it
+      else if (outputs.length === 1 && outputs[0].type.endsWith("[]")) {
+        values.push(this.parseOverrideValue(outputs[0].type, override.values));
+      } else {
+        // Multiple return values - map each value to each output
+        for (let i = 0; i < outputs.length; i++) {
+          values.push(
+            this.parseOverrideValue(outputs[i].type, override.values[i] ?? "0")
+          );
+        }
       }
     } else if (override.value !== undefined) {
       // Single return value
@@ -423,24 +441,35 @@ export class Blockchain {
 
   /**
    * Parse a string value to the appropriate type
+   * For array types, value should be a JSON array string or will be parsed from values array
    */
-  private parseOverrideValue(type: string, value: string): unknown {
+  private parseOverrideValue(type: string, value: string | string[]): unknown {
+    // Handle array types (e.g., uint256[], address[], bytes32[])
+    if (type.endsWith("[]")) {
+      const baseType = type.slice(0, -2);
+      const arr = Array.isArray(value) ? value : [value];
+      return arr.map((v) => this.parseOverrideValue(baseType, v));
+    }
+
+    // Ensure value is a string for non-array types
+    const strValue = Array.isArray(value) ? value[0] ?? "0" : value;
+
     if (type.startsWith("uint") || type.startsWith("int")) {
-      return BigInt(value);
+      return BigInt(strValue);
     }
     if (type === "bool") {
-      return value === "true" || value === "1";
+      return strValue === true || strValue === "true" || strValue === "1";
     }
     if (type === "address") {
-      return value;
+      return strValue;
     }
     if (type === "string") {
-      return value;
+      return strValue;
     }
     if (type.startsWith("bytes")) {
-      return value.startsWith("0x") ? value : `0x${value}`;
+      return strValue.startsWith("0x") ? strValue : `0x${strValue}`;
     }
-    return value;
+    return strValue;
   }
 
   /**
