@@ -1,21 +1,52 @@
 {
   "name": "abi-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.1.0-beta.1",
+  "description": "ABI-first mock Ethereum RPC server for frontend development",
+  "main": "./dist/cli.js",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/cli.js",
+      "types": "./dist/cli.d.ts"
+    }
+  },
   "bin": {
     "abi-node": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "docs"
+  ],
   "scripts": {
     "dev": "tsx --watch src/cli.ts",
     "build": "tsup",
     "test": "vitest",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "prepublishOnly": "pnpm build"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ethereum",
+    "rpc",
+    "mock",
+    "abi",
+    "web3",
+    "blockchain",
+    "testing",
+    "viem",
+    "wagmi",
+    "frontend"
+  ],
+  "author": "Lancers",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0x3f-lancers/abi-node"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "packageManager": "pnpm@10.25.0",
   "dependencies": {
     "chalk": "^5.6.2",
