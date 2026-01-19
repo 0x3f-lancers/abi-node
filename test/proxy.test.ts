@@ -100,11 +100,32 @@ describe("Proxy Mode", () => {
     expect(supply).toBe(1n); // Default value
   });
 
-  it("should forward unknown RPC methods to proxy", async () => {
+  it("should use local handlers even when proxy is configured (local wins)", async () => {
+    const mockProxy = {
+      call: async () => {
+        throw new Error("Should not be called - local handlers take precedence");
+      },
+      url: "http://mock-proxy",
+    };
+
+    const handler = createRpcHandler({
+      blockchain,
+      proxy: mockProxy as unknown as ProxyClient,
+    });
+
+    // eth_getBalance has a local handler, so proxy should NOT be called
+    const result = await handler("eth_getBalance", [MOCK_ADDRESS, "latest"]);
+
+    expect(result).toHaveProperty("result");
+    // Local handler returns 100 ETH (0x56bc75e2d63100000)
+    expect((result as { result: string }).result).toBe("0x56bc75e2d63100000");
+  });
+
+  it("should forward truly unknown methods to proxy", async () => {
     const mockProxy = {
       call: async (method: string) => {
-        if (method === "eth_getBalance") {
-          return "0x1000";
+        if (method === "eth_someCustomMethod") {
+          return "0xabcd";
         }
         throw new Error("Unknown method");
       },
@@ -116,9 +137,10 @@ describe("Proxy Mode", () => {
       proxy: mockProxy as unknown as ProxyClient,
     });
 
-    const result = await handler("eth_getBalance", [MOCK_ADDRESS, "latest"]);
+    // Custom method not in local handlers should be proxied
+    const result = await handler("eth_someCustomMethod", []);
 
     expect(result).toHaveProperty("result");
-    expect((result as { result: string }).result).toBe("0x1000");
+    expect((result as { result: string }).result).toBe("0xabcd");
   });
 });

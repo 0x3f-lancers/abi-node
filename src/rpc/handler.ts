@@ -1,4 +1,4 @@
-import { toHex, parseTransaction } from "viem";
+import { toHex, parseTransaction, recoverTransactionAddress } from "viem";
 import type { Blockchain } from "../blockchain/chain.js";
 import { ProxyClient, ProxyError } from "./proxy.js";
 import {
@@ -20,17 +20,6 @@ interface HandlerOptions {
   blockchain: Blockchain;
   proxy?: ProxyClient;
 }
-
-// System methods that should be proxied when proxy is configured
-const PROXY_SYSTEM_METHODS = [
-  "eth_getBalance",
-  "eth_getCode",
-  "eth_gasPrice",
-  "eth_estimateGas",
-  "eth_getTransactionCount",
-  "eth_accounts",
-  "eth_getStorageAt",
-];
 
 export function createRpcHandler(options: HandlerOptions) {
   const { blockchain, proxy } = options;
@@ -251,9 +240,9 @@ export function createRpcHandler(options: HandlerOptions) {
       result: "0x3b9aca00", // 1 gwei
     }),
 
-    // Mock eth_estimateGas
+    // Mock eth_estimateGas - return high value to prevent "out of gas" errors
     eth_estimateGas: () => ({
-      result: "0x5208", // 21000 gas
+      result: "0xf4240", // 1,000,000 gas (mock value, do not trust)
     }),
 
     // Mock eth_getTransactionCount
@@ -267,16 +256,24 @@ export function createRpcHandler(options: HandlerOptions) {
     }),
 
     // eth_sendRawTransaction - decode signed tx and execute
-    eth_sendRawTransaction: (params) => {
+    eth_sendRawTransaction: async (params) => {
       const [signedTx] = params as [string];
 
       try {
         // Decode the signed transaction using viem
         const tx = parseTransaction(signedTx as `0x${string}`);
 
-        // Note: parseTransaction doesn't recover the `from` address from the signature
-        // For mock purposes, we use a default address since we don't verify signatures
-        const from = "0x0000000000000000000000000000000000000000" as `0x${string}`;
+        // Recover the signer address from the signed transaction
+        let from: `0x${string}`;
+        try {
+          from = await recoverTransactionAddress({
+            serializedTransaction: signedTx as `0x02${string}`,
+          });
+        } catch {
+          // Fallback if recovery fails (legacy tx or invalid signature)
+          from = "0x0000000000000000000000000000000000000000";
+        }
+
         const to = tx.to as `0x${string}`;
         const data = (tx.data ?? "0x") as `0x${string}`;
         const value = tx.value ?? 0n;
@@ -396,22 +393,9 @@ export function createRpcHandler(options: HandlerOptions) {
     }),
   };
 
-  // Add proxy-only system methods when proxy is configured
-  if (proxy) {
-    for (const method of PROXY_SYSTEM_METHODS) {
-      handlers[method] = async (params) => {
-        try {
-          const result = await proxy.call(method, params);
-          return { result };
-        } catch (err) {
-          if (err instanceof ProxyError) {
-            return { error: { code: err.code, message: err.message, data: err.data } };
-          }
-          return { error: { code: -32603, message: `Failed to proxy ${method}` } };
-        }
-      };
-    }
-  }
+  // Note: Local handlers always take precedence over proxy.
+  // Proxy is only used for unknown methods (see handleRpcRequest below).
+  // This ensures overrides and local mocks are never silently bypassed.
 
   return async function handleRpcRequest(
     method: string,
