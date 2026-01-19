@@ -1,11 +1,9 @@
 import Fastify from "fastify";
 import chalk from "chalk";
 import chokidar from "chokidar";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { loadAbisFromDirectory } from "./abi/loader.js";
-import { buildRegistry, populateRegistry, type ContractRegistry } from "./abi/registry.js";
-import { loadConfig, type LogConfig } from "./config.js";
+import { buildRegistry, populateRegistry } from "./abi/registry.js";
+import { loadConfigWithPath, loadConfigFromPath, type LogConfig } from "./config.js";
 import { createRpcHandler } from "./rpc/handler.js";
 import { ProxyClient } from "./rpc/proxy.js";
 import { Blockchain } from "./blockchain/chain.js";
@@ -25,8 +23,8 @@ interface ServerOptions {
 export async function startServer(options: ServerOptions) {
   const { port, abiDir, configPath } = options;
 
-  // Load config
-  const config = await loadConfig(process.cwd(), configPath);
+  // Load config with path for hot reload
+  const { config, configPath: resolvedConfigPath } = await loadConfigWithPath(process.cwd(), configPath);
   const blockTime = config.blockTime ?? 1; // default 1 second
 
   // Logging config with defaults
@@ -78,7 +76,7 @@ export async function startServer(options: ServerOptions) {
   const server = Fastify();
 
   // Enable CORS for browser requests
-  server.addHook("onRequest", async (request, reply) => {
+  server.addHook("onRequest", async (_request, reply) => {
     reply.header("Access-Control-Allow-Origin", "*");
     reply.header("Access-Control-Allow-Methods", "POST, OPTIONS");
     reply.header("Access-Control-Allow-Headers", "Content-Type");
@@ -165,21 +163,22 @@ export async function startServer(options: ServerOptions) {
   blockchain.startMining();
 
   // Hot reload config file
-  const configFile = configPath ?? "abi.config.json";
-  const configFullPath = resolve(process.cwd(), configFile);
   let watcher: ReturnType<typeof chokidar.watch> | null = null;
 
-  if (existsSync(configFullPath)) {
-    watcher = chokidar.watch(configFullPath, {
+  if (resolvedConfigPath) {
+    watcher = chokidar.watch(resolvedConfigPath, {
       ignoreInitial: true,
     });
+
+    const configFileName = resolvedConfigPath.split("/").pop() || "config";
+    console.log(chalk.dim(`Watching ${configFileName} for changes`));
 
     watcher.on("change", async () => {
       console.log(chalk.cyan("\n[hot-reload] Config file changed, reloading..."));
 
       try {
-        // Reload config
-        const newConfig = await loadConfig(process.cwd(), configPath);
+        // Reload config from the resolved path
+        const newConfig = await loadConfigFromPath(resolvedConfigPath);
 
         // Clear and repopulate registry
         registry.clear();

@@ -49,7 +49,7 @@ export function findMatchingEvents(abi: Abi, functionName: string): AbiEvent[] {
  */
 export function generateEventLog(
   event: AbiEvent,
-  contractAddress: `0x${string}`,
+  _contractAddress: `0x${string}`,
   txFrom: `0x${string}`,
   functionArgs: readonly unknown[],
   functionInputNames?: string[]

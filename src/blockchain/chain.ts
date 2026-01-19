@@ -9,7 +9,7 @@ import { generateDefaultValue, generateDefaultValues } from "../abi/defaults.js"
 import { findMatchingEvents, generateEventLog } from "../abi/events.js";
 import { StateStore } from "../state/store.js";
 import type { OverrideStore, ResolvedOverride } from "../state/overrides.js";
-import { UnknownContractError, DecodeError, RevertError } from "../errors.js";
+import { UnknownContractError, RevertError } from "../errors.js";
 import type {
   Block,
   Transaction,
@@ -458,7 +458,7 @@ export class Blockchain {
       return BigInt(strValue);
     }
     if (type === "bool") {
-      return strValue === true || strValue === "true" || strValue === "1";
+      return strValue === "true" || strValue === "1";
     }
     if (type === "address") {
       return strValue;

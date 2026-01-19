@@ -3,7 +3,6 @@ import type { Blockchain } from "../blockchain/chain.js";
 import { ProxyClient, ProxyError } from "./proxy.js";
 import {
   AbiNodeError,
-  UnknownContractError,
   RevertError,
 } from "../errors.js";
 
@@ -275,7 +274,9 @@ export function createRpcHandler(options: HandlerOptions) {
         // Decode the signed transaction using viem
         const tx = parseTransaction(signedTx as `0x${string}`);
 
-        const from = tx.from ?? ("0x0000000000000000000000000000000000000000" as `0x${string}`);
+        // Note: parseTransaction doesn't recover the `from` address from the signature
+        // For mock purposes, we use a default address since we don't verify signatures
+        const from = "0x0000000000000000000000000000000000000000" as `0x${string}`;
         const to = tx.to as `0x${string}`;
         const data = (tx.data ?? "0x") as `0x${string}`;
         const value = tx.value ?? 0n;
@@ -289,7 +290,7 @@ export function createRpcHandler(options: HandlerOptions) {
         // Execute the transaction through the blockchain
         const txHash = blockchain.sendTransaction(from, to, data, value);
         return { result: txHash };
-      } catch (err) {
+      } catch {
         // If we can't decode, just return a mock hash
         const txHash = `0x${Date.now().toString(16).padStart(64, "0")}` as `0x${string}`;
         return { result: txHash };
