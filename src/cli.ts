@@ -100,7 +100,7 @@ export default {
  * Generate TypeScript config file content with inline types (fallback)
  */
 function generateTsConfigInline(config: Config): string {
-  return `interface AbiNodeConfig {
+  return `interface Config {
   port?: number;
   blockTime?: number;
   proxyRpc?: string;
@@ -127,7 +127,7 @@ export default {
     blocks: ${config.logging?.blocks ?? true},
     hideEmptyBlocks: ${config.logging?.hideEmptyBlocks ?? false},
   },
-} satisfies AbiNodeConfig;
+} satisfies Config;
 `;
 }
 
